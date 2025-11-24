@@ -1,15 +1,18 @@
-import { 
-  ShieldAlert, 
-  Activity, 
-  Search, 
-  BrainCircuit, 
-  Database, 
-  CheckCircle, 
+import {
+  ShieldAlert,
+  Activity,
+  Search,
+  BrainCircuit,
+  Database,
+  CheckCircle,
   XCircle,
   AlertTriangle,
   Lock,
   History,
-  Zap
+  Zap,
+  BarChart3,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 
 export const ICONS = {
@@ -23,7 +26,10 @@ export const ICONS = {
   Alert: <AlertTriangle className="w-5 h-5" />,
   Lock: <Lock className="w-4 h-4" />,
   History: <History className="w-4 h-4" />,
-  Zap: <Zap className="w-4 h-4" />
+  Zap: <Zap className="w-4 h-4" />,
+  BarChart: <BarChart3 className="w-5 h-5" />,
+  Clock: <Clock className="w-5 h-5" />,
+  AlertCircle: <AlertCircle className="w-5 h-5" />
 };
 
 export const INITIAL_KNOWLEDGE_BASE = [
