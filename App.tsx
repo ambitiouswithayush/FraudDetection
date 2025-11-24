@@ -7,6 +7,7 @@ import TransactionStream from './components/TransactionStream';
 import AnalystPanel from './components/AnalystPanel';
 import Dashboard from './components/Dashboard';
 import DocumentStoreViewer from './components/DocumentStoreViewer';
+import ChatBot from './components/ChatBot';
 import ToastContainer, { ToastMessage } from './components/Toast';
 import { INITIAL_KNOWLEDGE_BASE, ICONS } from './constants';
 
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showDocumentStore, setShowDocumentStore] = useState(false);
+  const [showChatBot, setShowChatBot] = useState(false);
   const metricsHistoryRef = useRef<MetricsSnapshot[]>([]);
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
   const [documentStore] = useState<DocumentStore>(getDocumentStore());
@@ -160,8 +162,25 @@ const App: React.FC = () => {
           </button>
           <button
             onClick={() => {
-              setShowDashboard(false);
               setShowDocumentStore(false);
+              setShowDashboard(false);
+              setShowChatBot(!showChatBot);
+            }}
+            className={`p-3 rounded-lg transition relative group ${
+              showChatBot
+                ? 'bg-slate-800 text-cyan-400'
+                : 'text-slate-500 hover:bg-slate-800 hover:text-cyan-400'
+            }`}
+            aria-label="Chat with Analyst"
+          >
+             {ICONS.Brain}
+             <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">AI Chat</span>
+          </button>
+          <button
+            onClick={() => {
+              setShowChatBot(false);
+              setShowDocumentStore(false);
+              setShowDashboard(false);
             }}
             className="p-3 bg-slate-800 text-blue-400 rounded-lg transition hover:bg-slate-700 relative group"
             aria-label="Live Monitor"
@@ -193,7 +212,10 @@ const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden relative mt-16">
         <ToastContainer messages={toasts} onRemove={removeToast} />
 
-        {showDocumentStore ? (
+        {showChatBot ? (
+          // ChatBot View
+          <ChatBot transaction={selectedTx} knowledgeBase={knowledgeBase} />
+        ) : showDocumentStore ? (
           // Document Store View
           <DocumentStoreViewer documentStore={documentStore} />
         ) : showDashboard ? (
