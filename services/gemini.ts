@@ -3,7 +3,17 @@ import { Transaction, FraudCase, AnalysisResult } from "../types";
 
 // NOTE: Using the prompt provided instruction to use process.env.API_KEY
 // In a real deployment, ensure your bundler (Vite/Webpack) exposes this.
-const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta.env as any).VITE_GEMINI_API_KEY;
+
+if (!apiKey) {
+  console.error("❌ CRITICAL: Gemini API Key not found in environment variables");
+  console.error("   - process.env.API_KEY:", process.env.API_KEY);
+  console.error("   - process.env.GEMINI_API_KEY:", process.env.GEMINI_API_KEY);
+  console.error("   - import.meta.env.VITE_GEMINI_API_KEY:", (import.meta.env as any).VITE_GEMINI_API_KEY);
+  console.log("   ℹ️ Check your .env.local file has: VITE_GEMINI_API_KEY=your_key");
+}
+
+const genAI = new GoogleGenAI({ apiKey: apiKey || "" });
 
 export const analyzeTransactionWithGemini = async (
   transaction: Transaction,
@@ -74,12 +84,29 @@ export const analyzeTransactionWithGemini = async (
     return JSON.parse(responseText) as AnalysisResult;
 
   } catch (error) {
-    console.error("Gemini Analysis Failed:", error);
-    // Fallback if API fails
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("❌ Gemini Analysis Failed:", {
+      error: errorMsg,
+      apiKeyPresent: !!apiKey,
+      timestamp: new Date().toISOString()
+    });
+
+    // More detailed fallback message
+    let failureReason = "AI Analysis unavailable. Check API Key.";
+    if (!apiKey) {
+      failureReason = "API Key not configured. See console for details.";
+    } else if (errorMsg.includes("INVALID_ARGUMENT")) {
+      failureReason = "Invalid or expired API Key.";
+    } else if (errorMsg.includes("429")) {
+      failureReason = "API rate limit exceeded. Try again later.";
+    } else if (errorMsg.includes("UNAUTHENTICATED")) {
+      failureReason = "API authentication failed. Check your key.";
+    }
+
     return {
       isLikelyFraud: false,
       confidence: 0,
-      reasoning: "AI Analysis unavailable. Check API Key.",
+      reasoning: failureReason,
       recommendedAction: "HOLD",
       keyRiskFactors: ["System Error"]
     };
