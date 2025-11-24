@@ -85,21 +85,8 @@ const App: React.FC = () => {
   const selectedTx = transactions.find(t => t.id === selectedTxId) || null;
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-200 flex flex-col overflow-hidden font-sans">
-
-      {/* Top Header */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center px-6 z-30">
-        <div className="flex items-center gap-3">
-          {ICONS.Shield}
-          <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">
-            FraudLens
-          </h1>
-        </div>
-      </header>
-
-      {/* Main Content Container */}
-      <div className="flex-1 flex overflow-hidden font-sans">
-
+    <div className="h-screen w-screen bg-slate-950 text-slate-200 flex overflow-hidden font-sans">
+      
       {/* Sidebar / Nav */}
       <nav className="w-16 flex flex-col items-center py-6 border-r border-slate-800 bg-slate-900 z-20">
         <div className="mb-8 p-2 bg-blue-600 rounded-lg text-white shadow-lg shadow-blue-500/20">
@@ -170,7 +157,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-      </div>
       </div>
     </div>
   );

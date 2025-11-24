@@ -1,25 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Transaction, FraudCase, AnalysisResult } from "../types";
 
-// NOTE: Vite exposes environment variables with VITE_ prefix via import.meta.env
-// This is the primary method for client-side access in Vite projects
-const viteEnv = import.meta.env as Record<string, string>;
-const apiKey = viteEnv.VITE_GEMINI_API_KEY;
-
-// Diagnostic logging
-console.log("🔍 [Gemini Service] Initializing with API Key Check");
-console.log("   ✓ import.meta.env.VITE_GEMINI_API_KEY defined:", typeof viteEnv.VITE_GEMINI_API_KEY !== 'undefined');
-console.log("   📋 API Key value (first 10 chars):", viteEnv.VITE_GEMINI_API_KEY?.substring(0, 10) || "undefined");
-
-if (!apiKey) {
-  console.error("❌ CRITICAL: Gemini API Key not found in environment variables");
-  console.error("   - import.meta.env.VITE_GEMINI_API_KEY:", viteEnv.VITE_GEMINI_API_KEY);
-  console.log("   ℹ️ Check your .env.local file has: VITE_GEMINI_API_KEY=your_key");
-} else {
-  console.log("✅ Gemini API Key loaded successfully:", apiKey.substring(0, 10) + "...");
-}
-
-const genAI = new GoogleGenAI({ apiKey: apiKey || "" });
+// NOTE: Using the prompt provided instruction to use process.env.API_KEY
+// In a real deployment, ensure your bundler (Vite/Webpack) exposes this.
+const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeTransactionWithGemini = async (
   transaction: Transaction,
@@ -63,19 +47,9 @@ export const analyzeTransactionWithGemini = async (
   `;
 
   try {
-    console.log("🚀 [Gemini API] Calling generateContent with model:", model);
     const result = await genAI.models.generateContent({
       model: model,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: prompt
-            }
-          ]
-        }
-      ],
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -85,9 +59,9 @@ export const analyzeTransactionWithGemini = async (
             confidence: { type: Type.NUMBER },
             reasoning: { type: Type.STRING },
             recommendedAction: { type: Type.STRING, enum: ["BLOCK", "ALLOW", "HOLD"] },
-            keyRiskFactors: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
+            keyRiskFactors: { 
+              type: Type.ARRAY, 
+              items: { type: Type.STRING } 
             }
           }
         }
@@ -97,38 +71,15 @@ export const analyzeTransactionWithGemini = async (
     const responseText = result.text;
     if (!responseText) throw new Error("Empty response from Gemini");
 
-    console.log("✅ [Gemini API] Analysis successful:", { confidence: JSON.parse(responseText).confidence });
     return JSON.parse(responseText) as AnalysisResult;
 
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-
-    console.error("❌ Gemini Analysis Failed:", {
-      error: errorMsg,
-      fullError: JSON.stringify(error),
-      apiKeyPresent: !!apiKey,
-      apiKeyLength: apiKey?.length,
-      timestamp: new Date().toISOString()
-    });
-
-    // More detailed fallback message
-    let failureReason = "AI Analysis unavailable. Check API Key.";
-    if (!apiKey) {
-      failureReason = "API Key not configured. See console for details.";
-    } else if (errorMsg.includes("INVALID_ARGUMENT")) {
-      failureReason = "Invalid API request format.";
-    } else if (errorMsg.includes("429")) {
-      failureReason = "API rate limit exceeded. Try again later.";
-    } else if (errorMsg.includes("UNAUTHENTICATED")) {
-      failureReason = "API authentication failed. Check your key.";
-    } else if (errorMsg.includes("PERMISSION_DENIED")) {
-      failureReason = "API key not authorized. Check API Key in Google AI Studio.";
-    }
-
+    console.error("Gemini Analysis Failed:", error);
+    // Fallback if API fails
     return {
       isLikelyFraud: false,
       confidence: 0,
-      reasoning: failureReason,
+      reasoning: "AI Analysis unavailable. Check API Key.",
       recommendedAction: "HOLD",
       keyRiskFactors: ["System Error"]
     };
