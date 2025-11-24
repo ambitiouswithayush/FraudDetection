@@ -158,7 +158,14 @@ const App: React.FC = () => {
              {ICONS.BarChart}
              <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Dashboard</span>
           </button>
-          <button className="p-3 bg-slate-800 text-blue-400 rounded-lg transition hover:bg-slate-700 relative group" aria-label="Live Monitor">
+          <button
+            onClick={() => {
+              setShowDashboard(false);
+              setShowDocumentStore(false);
+            }}
+            className="p-3 bg-slate-800 text-blue-400 rounded-lg transition hover:bg-slate-700 relative group"
+            aria-label="Live Monitor"
+          >
              {ICONS.Activity}
              <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Live Monitor</span>
           </button>
