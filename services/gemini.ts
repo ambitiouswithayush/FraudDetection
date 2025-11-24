@@ -5,12 +5,23 @@ import { Transaction, FraudCase, AnalysisResult } from "../types";
 // In a real deployment, ensure your bundler (Vite/Webpack) exposes this.
 const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || (import.meta.env as any).VITE_GEMINI_API_KEY;
 
+// Diagnostic logging
+if (typeof window !== 'undefined') {
+  // Only log in browser environment
+  console.log("🔍 [Gemini Service] Initializing with API Key Check");
+  console.log("   ✓ process.env.API_KEY defined:", typeof process.env.API_KEY !== 'undefined');
+  console.log("   ✓ process.env.GEMINI_API_KEY defined:", typeof process.env.GEMINI_API_KEY !== 'undefined');
+  console.log("   ✓ import.meta.env.VITE_GEMINI_API_KEY defined:", typeof (import.meta.env as any).VITE_GEMINI_API_KEY !== 'undefined');
+}
+
 if (!apiKey) {
   console.error("❌ CRITICAL: Gemini API Key not found in environment variables");
   console.error("   - process.env.API_KEY:", process.env.API_KEY);
   console.error("   - process.env.GEMINI_API_KEY:", process.env.GEMINI_API_KEY);
   console.error("   - import.meta.env.VITE_GEMINI_API_KEY:", (import.meta.env as any).VITE_GEMINI_API_KEY);
   console.log("   ℹ️ Check your .env.local file has: VITE_GEMINI_API_KEY=your_key");
+} else {
+  console.log("✅ Gemini API Key loaded successfully:", apiKey.substring(0, 10) + "...");
 }
 
 const genAI = new GoogleGenAI({ apiKey: apiKey || "" });
@@ -57,6 +68,7 @@ export const analyzeTransactionWithGemini = async (
   `;
 
   try {
+    console.log("🚀 [Gemini API] Calling generateContent with model:", model);
     const result = await genAI.models.generateContent({
       model: model,
       contents: prompt,
@@ -69,9 +81,9 @@ export const analyzeTransactionWithGemini = async (
             confidence: { type: Type.NUMBER },
             reasoning: { type: Type.STRING },
             recommendedAction: { type: Type.STRING, enum: ["BLOCK", "ALLOW", "HOLD"] },
-            keyRiskFactors: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING } 
+            keyRiskFactors: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
             }
           }
         }
@@ -81,6 +93,7 @@ export const analyzeTransactionWithGemini = async (
     const responseText = result.text;
     if (!responseText) throw new Error("Empty response from Gemini");
 
+    console.log("✅ [Gemini API] Analysis successful:", { confidence: JSON.parse(responseText).confidence });
     return JSON.parse(responseText) as AnalysisResult;
 
   } catch (error) {
