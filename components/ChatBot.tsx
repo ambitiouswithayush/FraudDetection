@@ -36,71 +36,101 @@ const ChatBot: React.FC<Props> = ({ transaction, knowledgeBase }) => {
   }, [messages]);
 
   const generateResponse = async (userMessage: string): Promise<string> => {
-    // Simulate API call - in production, this would call actual Gemini API
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Context-aware responses based on user input and current state
     const lowerMessage = userMessage.toLowerCase();
+    const API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
-    if (lowerMessage.includes('current transaction') || lowerMessage.includes('this transaction')) {
-      if (transaction) {
-        return `The current transaction is for $${transaction.amount} at ${transaction.merchant}. Risk level: ${transaction.riskLevel}. Z-Score: ${transaction.zScore.toFixed(2)}, Signature Match: ${(transaction.signatureMatchScore * 100).toFixed(0)}%. This transaction ${transaction.riskLevel === 'CRITICAL' ? 'appears suspicious and requires immediate review.' : 'appears normal and should be safe to approve.'}`;
-      }
-      return 'No transaction is currently selected. Please select a transaction from the stream to analyze it.';
+    // Build context about current transaction
+    let txContext = '';
+    if (transaction) {
+      txContext = `Current transaction: $${transaction.amount} at ${transaction.merchant}, Risk: ${transaction.riskLevel}, Z-Score: ${transaction.zScore.toFixed(2)}, Signature Match: ${(transaction.signatureMatchScore * 100).toFixed(0)}%`;
     }
 
-    if (lowerMessage.includes('knowledge base') || lowerMessage.includes('patterns')) {
-      return `Our knowledge base contains ${knowledgeBase.length} fraud patterns. These patterns help us identify similar fraudulent transactions in real-time. The system uses both behavioral analysis (Z-scores) and signature matching to detect anomalies.`;
-    }
+    const systemPrompt = `You are a fraud detection AI analyst. You have access to:
+- Current transaction: ${txContext || 'None selected'}
+- Knowledge base: ${knowledgeBase.length} fraud patterns
+- Hybrid detection: Behavioral analysis (Z-scores) + Signature matching (RAG)
 
-    if (lowerMessage.includes('how does') || lowerMessage.includes('how do you')) {
-      return `I use a hybrid approach:
-1. **Behavioral Analysis**: Statistical Z-scores comparing transaction amounts to user history
-2. **Signature Matching**: RAG-based pattern matching against our knowledge base of confirmed fraud cases
-3. **Policy Enforcement**: Checking against AML policies, sanction lists, and merchant risk ratings
-4. **Real-time Alerts**: System-wide monitoring of transaction velocity, geographic patterns, and model performance`;
-    }
+Respond concisely and specifically. If the user asks about something not in your domain, politely redirect them.`;
 
-    if (lowerMessage.includes('risk')) {
-      return `Risk assessment involves multiple factors: transaction amount, merchant category, user profile, geographic location, and similarity to known fraud patterns. Risk levels are categorized as LOW, MEDIUM, or CRITICAL. Our model achieves high accuracy in distinguishing legitimate from fraudulent transactions.`;
-    }
+    // Try to use real Gemini API if available
+    if (API_KEY) {
+      try {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + API_KEY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: userMessage }] }],
+            generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
+          }),
+        });
 
-    if (lowerMessage.includes('recommendation') || lowerMessage.includes('should i')) {
-      if (transaction) {
-        if (transaction.riskLevel === 'CRITICAL') {
-          return `Based on the analysis, I recommend BLOCKING this transaction. The risk level is CRITICAL with high deviation from normal patterns. You can click "Block & Learn" to add it to our knowledge base for future detection.`;
+        if (response.ok) {
+          const data = await response.json();
+          return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate response.';
         }
-        return `Based on the analysis, this transaction appears safe. Risk level is ${transaction.riskLevel}. You can safely ALLOW it. If you disagree with the assessment, blocking it will help improve our model.`;
+      } catch (error) {
+        console.error('Gemini API error:', error);
       }
-      return 'Please select a transaction to get a personalized recommendation.';
     }
 
-    if (lowerMessage.includes('false positive') || lowerMessage.includes('block & learn')) {
-      return `"Block & Learn" is a feedback loop feature. When you block a transaction, it\'s added to our knowledge base as a confirmed fraud case. This helps the system learn and improve fraud detection accuracy over time. Even if a transaction was legitimate, marking it as fraud helps us refine our patterns.`;
+    // Fallback to smart pattern matching if API unavailable
+    return getFallbackResponse(lowerMessage, transaction, knowledgeBase);
+  };
+
+  const getFallbackResponse = (
+    lowerMessage: string,
+    transaction: Transaction | null,
+    knowledgeBase: FraudCase[]
+  ): string => {
+    // Transaction-specific queries
+    if (lowerMessage.match(/current|this transaction|analyze|what about/)) {
+      if (!transaction) return 'No transaction selected. Click on a transaction in the stream to analyze it.';
+      const risk = transaction.riskLevel === 'CRITICAL' ? 'HIGH RISK' : 'LOW RISK';
+      return `$${transaction.amount} at ${transaction.merchant} (${risk}). Z-Score: ${transaction.zScore.toFixed(2)}, Match: ${(transaction.signatureMatchScore * 100).toFixed(0)}%.`;
     }
 
-    if (lowerMessage.includes('merchant') || lowerMessage.includes('vendors')) {
-      return `Merchants are rated based on fraud rate, chargeback rate, and compliance issues. High-risk merchants (crypto exchanges, wire transfers, etc.) receive stricter scrutiny. Our document store maintains detailed merchant ratings and compliance histories.`;
+    if (lowerMessage.match(/block|allow|recommend/)) {
+      if (!transaction) return 'Select a transaction first.';
+      return transaction.riskLevel === 'CRITICAL'
+        ? `Block this - high deviation. "Block & Learn" adds it to our knowledge base.`
+        : `Safe to allow. If wrong, blocking helps us improve.`;
     }
 
-    if (lowerMessage.includes('sanction') || lowerMessage.includes('blocked entities')) {
-      return `We maintain OFAC-style sanction lists of blocked entities. Any transaction involving sanctioned individuals or organizations is automatically blocked. This ensures compliance with international financial regulations.`;
+    if (lowerMessage.match(/knowledge base|patterns|learn/)) {
+      return `${knowledgeBase.length} patterns in KB. Hybrid detection: behavioral (Z-scores) + signature (RAG).`;
     }
 
-    if (lowerMessage.includes('help') || lowerMessage.includes('what can you do')) {
-      return `I can help you with:
-• Analysis of the current transaction
-• Explaining fraud detection methods
-• Discussing risk factors and recommendations
-• Answering questions about our knowledge base
-• Explaining compliance policies and merchant ratings
-• Providing insights on system performance
-
-Just ask me anything! You can also use the Dashboard to see real-time metrics and the Document Store to view policies.`;
+    if (lowerMessage.match(/how|explain|describe|work/)) {
+      return `Hybrid detection: 1) Behavioral - Z-score deviation 2) Signature - pattern matching 3) Policy - AML/sanctions 4) Alerts - velocity/geography`;
     }
 
-    // Default response for general queries
-    return `That's an interesting question! In this fraud detection system, I analyze transactions using behavioral analysis, pattern matching, and policy enforcement. Is there something specific about fraud detection, the current transaction, or our compliance policies you'd like to know more about?`;
+    if (lowerMessage.match(/risk|factor|score/)) {
+      return `Risk factors: transaction amount, merchant category, user history, location, pattern similarity. Levels: LOW, MEDIUM, CRITICAL.`;
+    }
+
+    if (lowerMessage.match(/merchant/)) {
+      return `Merchants rated by fraud rate, chargebacks, compliance. High-risk: crypto, wire transfers. Document Store has full ratings.`;
+    }
+
+    if (lowerMessage.match(/sanction|block|entity|compliance/)) {
+      return `OFAC sanction lists prevent transactions with blocked entities. Automatic block for international compliance.`;
+    }
+
+    if (lowerMessage.match(/help|what can|dashboard|document|storage/)) {
+      return `I analyze transactions, explain fraud detection, discuss risks, and answer policy questions. Check Dashboard for metrics, Document Store for policies.`;
+    }
+
+    if (lowerMessage.match(/hello|hi|hey|good/)) {
+      return `Hi! I'm the Gemini Fraud Analyst. Ask about fraud detection, current transaction analysis, or our detection methods.`;
+    }
+
+    if (lowerMessage.match(/thanks|thank|great|good job|nice/)) {
+      return `Happy to help! Anything else about fraud detection?`;
+    }
+
+    // Default: ask for clarification
+    return `Not sure I understood. Try asking about: current transaction, risk factors, how detection works, knowledge base, or recommendations.`;
   };
 
   const handleSendMessage = async () => {
